@@ -7,7 +7,6 @@
 //
 
 import UIKit
-import Darwin
 
 class ViewController: UIViewController {
 
@@ -15,8 +14,6 @@ class ViewController: UIViewController {
 	private var hasDot = false
 	private var dotJustAdded = false
 	private var stackDisplayInitialized = false
-
-	private let piString = NSString(format: "%.5f", M_PI)
 
     private var operandStack = Array<Double>()
     
@@ -42,38 +39,23 @@ class ViewController: UIViewController {
     
 	@IBAction func dot() {
 		if !hasDot {
-			isTypingANumber = true
 			hasDot = true
 			dotJustAdded = true
+			if !isTypingANumber {
+				isTypingANumber = true
+				display.text = "0"
+			}
 		}
-	}
-
-	@IBAction func pi() {
-		isTypingANumber = true
-		displayValue = M_PI
-		enter()
 	}
 
     @IBAction func enter() {
-//		if isTypingANumber {
 		operandStack.append(displayValue)
-
-		var stringToAppend: String = "\(displayValue)"
-		if stringToAppend == piString {
-			stringToAppend = "π"
-		}
-
-		if !stackDisplayInitialized {
-			stack.text = stringToAppend
-			stackDisplayInitialized = true
-		} else {
-			stack.text = stack.text! + " " + stringToAppend
-		}
+		appendOpAndDisplay("\(displayValue)")
 
 		isTypingANumber = false
 		hasDot = false
 		dotJustAdded = false
-//		}
+
 		println(operandStack)
     }
     
@@ -94,12 +76,7 @@ class ViewController: UIViewController {
 			enter()
 		}
         let operation = sender.currentTitle!
-		if !stackDisplayInitialized {
-			stack.text = "\(operation)"
-			stackDisplayInitialized = true
-		} else {
-			stack.text = stack.text! + " \(operation)"
-		}
+		appendOpAndDisplay(operation)
 
 		switch operation {
 		case "+": performBinaryOperation{$1 + $0}
@@ -109,14 +86,22 @@ class ViewController: UIViewController {
 		case "sin": performUnaryOperation(sin)
 		case "cos": performUnaryOperation(cos)
 		case "√": performUnaryOperation(sqrt)
+		case "π": performPrintOperation(M_PI)
 		default: println("Wrong operation!")
+		}
+	}
+
+	func appendOpAndDisplay(op: String) {
+		if !stackDisplayInitialized {
+			stack.text = op
+			stackDisplayInitialized = true
+		} else {
+			stack.text = stack.text! + " " + op
 		}
 	}
 
 	func performBinaryOperation(operation: (Double, Double) -> Double) {
 		if operandStack.count >= 2 {
-//			TODO: resolve strange behaviour
-//			isTypingANumber = true
 			displayValue = operation(operandStack.removeLast(), operandStack.removeLast())
 			operandStack.append(displayValue)
 		}
@@ -124,11 +109,14 @@ class ViewController: UIViewController {
 
 	func performUnaryOperation(operation: (Double) -> Double) {
 		if operandStack.count >= 1 {
-//			TODO: resolve strange behaviour
-//			isTypingANumber = true
 			displayValue = operation(operandStack.removeLast())
 			operandStack.append(displayValue)
 		}
+	}
+
+	func performPrintOperation(value: Double) {
+		displayValue = value
+		operandStack.append(value)
 	}
 
     var displayValue: Double {
@@ -136,7 +124,6 @@ class ViewController: UIViewController {
             return NSNumberFormatter().numberFromString(display.text!)!.doubleValue
         }
         set {
-//            isTypingANumber = false
             display.text = NSString(format: "%.5f", newValue)
         }
     }
