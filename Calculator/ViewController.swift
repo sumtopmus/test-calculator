@@ -14,6 +14,7 @@ class ViewController: UIViewController {
 	private var hasDot = false
 	private var dotJustAdded = false
 	private var stackDisplayInitialized = false
+	private var equalitySignIsDisplayed = false
 
     private var operandStack = Array<Double>()
     
@@ -22,7 +23,8 @@ class ViewController: UIViewController {
 	@IBOutlet weak var stack: UILabel!
 
     @IBAction func digit(sender: UIButton) {
-        let digit = sender.currentTitle!
+		removeEquality()
+		let digit = sender.currentTitle!
 
 		if dotJustAdded {
 			display.text = display.text! + "."
@@ -38,6 +40,7 @@ class ViewController: UIViewController {
     }
     
 	@IBAction func dot() {
+		removeEquality()
 		if !hasDot {
 			hasDot = true
 			dotJustAdded = true
@@ -49,8 +52,8 @@ class ViewController: UIViewController {
 	}
 
     @IBAction func enter() {
-		operandStack.append(displayValue)
-		appendOpAndDisplay("\(displayValue)")
+		operandStack.append(displayValue!)
+		appendOpAndDisplay("\(displayValue!)")
 
 		isTypingANumber = false
 		hasDot = false
@@ -59,11 +62,23 @@ class ViewController: UIViewController {
 		println(operandStack)
     }
     
+	@IBAction func backspace() {
+		removeEquality()
+		if isTypingANumber {
+			display.text = dropLast(display.text!)
+			if 0 == countElements(display.text!) {
+				display.text = "0"
+				isTypingANumber = false
+			}
+		}
+	}
+
 	@IBAction func clear() {
 		isTypingANumber = false
 		hasDot = false
 		dotJustAdded = false
 		stackDisplayInitialized = false
+		equalitySignIsDisplayed = false
 
 		display.text = "0"
 		stack.text = "0"
@@ -72,11 +87,19 @@ class ViewController: UIViewController {
 	}
 
     @IBAction func operate(sender: UIButton) {
+		removeEquality()
+		let operation = sender.currentTitle!
 		if isTypingANumber {
-			enter()
+			if "±" == operation {
+				display.text = "-" + display.text!
+				return
+			} else {
+				enter()
+			}
 		}
-        let operation = sender.currentTitle!
 		appendOpAndDisplay(operation)
+		stack.text = stack.text! + " ="
+		equalitySignIsDisplayed = true
 
 		switch operation {
 		case "+": performBinaryOperation{$1 + $0}
@@ -86,6 +109,7 @@ class ViewController: UIViewController {
 		case "sin": performUnaryOperation(sin)
 		case "cos": performUnaryOperation(cos)
 		case "√": performUnaryOperation(sqrt)
+		case "±": performUnaryOperation{-$0}
 		case "π": performPrintOperation(M_PI)
 		default: println("Wrong operation!")
 		}
@@ -100,17 +124,27 @@ class ViewController: UIViewController {
 		}
 	}
 
+	func removeEquality() {
+		if equalitySignIsDisplayed {
+			stack.text = dropLast(stack.text!)
+			equalitySignIsDisplayed = false
+			stack.text = dropLast(stack.text!)
+		}
+	}
+
 	func performBinaryOperation(operation: (Double, Double) -> Double) {
 		if operandStack.count >= 2 {
 			displayValue = operation(operandStack.removeLast(), operandStack.removeLast())
-			operandStack.append(displayValue)
+			if let value = displayValue {
+				operandStack.append(value)
+			}
 		}
 	}
 
 	func performUnaryOperation(operation: (Double) -> Double) {
 		if operandStack.count >= 1 {
 			displayValue = operation(operandStack.removeLast())
-			operandStack.append(displayValue)
+			operandStack.append(displayValue!)
 		}
 	}
 
@@ -119,12 +153,22 @@ class ViewController: UIViewController {
 		operandStack.append(value)
 	}
 
-    var displayValue: Double {
+    var displayValue: Double? {
         get {
-            return NSNumberFormatter().numberFromString(display.text!)!.doubleValue
+            return NSNumberFormatter().numberFromString(display.text!)?.doubleValue
         }
         set {
-            display.text = NSString(format: "%.5f", newValue)
+			if let value = newValue {
+				if Double.infinity != value {
+					display.text = NSString(format: "%.5f", value)
+				} else {
+					clear()
+					display.text = "inf"
+				}
+			} else {
+				clear()
+				display.text = nil
+			}
         }
     }
 }
