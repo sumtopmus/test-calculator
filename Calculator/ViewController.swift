@@ -17,6 +17,8 @@ class ViewController: UIViewController {
 	private var equalitySignIsDisplayed = false
 
     private var operandStack = Array<Double>()
+
+	private var brain = CalculatorBrain()
     
     @IBOutlet weak var display: UILabel!
 
@@ -38,7 +40,7 @@ class ViewController: UIViewController {
             display.text = display.text! + digit
         }
     }
-    
+
 	@IBAction func dot() {
 		removeEquality()
 		if !hasDot {
@@ -52,8 +54,12 @@ class ViewController: UIViewController {
 	}
 
     @IBAction func enter() {
-		operandStack.append(displayValue!)
-		appendOpAndDisplay("\(displayValue!)")
+		appendOpAndDisplay("\(displayValue)")
+		if let result = brain.pushOperand(displayValue) {
+			displayValue = result
+		} else {
+			displayValue = nil
+		}
 
 		isTypingANumber = false
 		hasDot = false
@@ -88,31 +94,39 @@ class ViewController: UIViewController {
 
     @IBAction func operate(sender: UIButton) {
 		removeEquality()
-		let operation = sender.currentTitle!
-		if isTypingANumber {
-			if "±" == operation {
-				display.text = "-" + display.text!
-				return
-			} else {
-				enter()
+		if let operation = sender.currentTitle {
+			if isTypingANumber {
+				if "±" == operation {
+					display.text = "-" + display.text!
+					return
+				} else {
+					enter()
+				}
 			}
-		}
-		appendOpAndDisplay(operation)
-		stack.text = stack.text! + " ="
-		equalitySignIsDisplayed = true
+			appendOpAndDisplay(operation)
+			stack.text = stack.text! + " ="
+			equalitySignIsDisplayed = true
 
-		switch operation {
-		case "+": performBinaryOperation{$1 + $0}
-		case "−": performBinaryOperation{$1 - $0}
-		case "×": performBinaryOperation{$1 * $0}
-		case "÷": performBinaryOperation{$1 / $0}
-		case "sin": performUnaryOperation(sin)
-		case "cos": performUnaryOperation(cos)
-		case "√": performUnaryOperation(sqrt)
-		case "±": performUnaryOperation{-$0}
-		case "π": performPrintOperation(M_PI)
-		default: println("Wrong operation!")
+			if let result = brain.performOperation(operation) {
+				displayValue = result
+			} else {
+				displayValue = nil
+			}
+
 		}
+
+//		switch operation {
+//		case "+": performBinaryOperation{$1 + $0}
+//		case "−": performBinaryOperation{$1 - $0}
+//		case "×": performBinaryOperation{$1 * $0}
+//		case "÷": performBinaryOperation{$1 / $0}
+//		case "sin": performUnaryOperation(sin)
+//		case "cos": performUnaryOperation(cos)
+//		case "√": performUnaryOperation(sqrt)
+//		case "±": performUnaryOperation{-$0}
+//		case "π": performPrintOperation(M_PI)
+//		default: println("Wrong operation!")
+//		}
 	}
 
 	func appendOpAndDisplay(op: String) {
@@ -132,28 +146,28 @@ class ViewController: UIViewController {
 		}
 	}
 
-	func performBinaryOperation(operation: (Double, Double) -> Double) {
-		if operandStack.count >= 2 {
-			displayValue = operation(operandStack.removeLast(), operandStack.removeLast())
-			if let value = displayValue {
-				operandStack.append(value)
-			}
-		}
-	}
+//	func performBinaryOperation(operation: (Double, Double) -> Double) {
+//		if operandStack.count >= 2 {
+//			displayValue = operation(operandStack.removeLast(), operandStack.removeLast())
+//			if let value = displayValue {
+//				operandStack.append(value)
+//			}
+//		}
+//	}
+//
+//	func performUnaryOperation(operation: (Double) -> Double) {
+//		if operandStack.count >= 1 {
+//			displayValue = operation(operandStack.removeLast())
+//			operandStack.append(displayValue!)
+//		}
+//	}
+//
+//	func performPrintOperation(value: Double) {
+//		displayValue = value
+//		operandStack.append(value)
+//	}
 
-	func performUnaryOperation(operation: (Double) -> Double) {
-		if operandStack.count >= 1 {
-			displayValue = operation(operandStack.removeLast())
-			operandStack.append(displayValue!)
-		}
-	}
-
-	func performPrintOperation(value: Double) {
-		displayValue = value
-		operandStack.append(value)
-	}
-
-    var displayValue: Double? {
+    var displayValue: Double! {
         get {
             return NSNumberFormatter().numberFromString(display.text!)?.doubleValue
         }
