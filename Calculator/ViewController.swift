@@ -16,8 +16,6 @@ class ViewController: UIViewController {
 	private var stackDisplayInitialized = false
 	private var equalitySignIsDisplayed = false
 
-    private var operandStack = Array<Double>()
-
 	private var brain = CalculatorBrain()
     
     @IBOutlet weak var display: UILabel!
@@ -41,7 +39,30 @@ class ViewController: UIViewController {
         }
     }
 
-	@IBAction func dot() {
+    @IBAction func constant(sender: UIButton) {
+        removeEquality()
+        let variable = sender.currentTitle!
+
+        if (isTypingANumber) {
+            clearDisplayValue()
+        }
+
+        displayValue = brain.pushOperand(variable)    }
+
+    @IBAction func saveToMemory(sender: UIButton) {
+        reset()
+        if let value = displayValue {
+            brain.variableValues["M"] = value
+        }
+        displayValue = brain.evaluate()
+    }
+
+    @IBAction func getFromMemory(sender: UIButton) {
+        enter()
+        displayValue = brain.pushOperand(sender.currentTitle!)
+    }
+
+    @IBAction func dot() {
 		removeEquality()
 		if !hasDot {
 			hasDot = true
@@ -53,136 +74,86 @@ class ViewController: UIViewController {
 		}
 	}
 
+    @IBAction func operate(sender: UIButton) {
+        removeEquality()
+        if let operation = sender.currentTitle {
+            if isTypingANumber {
+                if "±" == operation {
+                    display.text = "-" + display.text!
+                    return
+                } else {
+                    enter()
+                }
+            }
+            displayValue = brain.performOperation(operation)
+        }
+    }
+
     @IBAction func enter() {
-		appendOpAndDisplay("\(displayValue)")
-		if let result = brain.pushOperand(displayValue) {
-			displayValue = result
-		} else {
-			displayValue = nil
-		}
-
-		isTypingANumber = false
-		hasDot = false
-		dotJustAdded = false
-
-		println(operandStack)
+        if (!equalitySignIsDisplayed) {
+            reset()
+            if let value = displayValue {
+                displayValue = brain.pushOperand(value)
+            }
+        }
     }
     
 	@IBAction func backspace() {
-		removeEquality()
-		if isTypingANumber {
+        if isTypingANumber {
 			display.text = dropLast(display.text!)
 			if 0 == countElements(display.text!) {
-				display.text = "0"
+				display.text = " "
 				isTypingANumber = false
 			}
 		}
 	}
 
 	@IBAction func clear() {
-		isTypingANumber = false
-		hasDot = false
-		dotJustAdded = false
-		stackDisplayInitialized = false
-		equalitySignIsDisplayed = false
-
-		display.text = "0"
-		stack.text = "0"
-
-		operandStack.removeAll(keepCapacity: false)
+        clearDisplayValue()
+        stack.text = " "
+        brain.clear()
 	}
 
-    @IBAction func operate(sender: UIButton) {
-		removeEquality()
-		if let operation = sender.currentTitle {
-			if isTypingANumber {
-				if "±" == operation {
-					display.text = "-" + display.text!
-					return
-				} else {
-					enter()
-				}
-			}
-			appendOpAndDisplay(operation)
-			stack.text = stack.text! + " ="
-			equalitySignIsDisplayed = true
+    private func clearDisplayValue() {
+        reset()
+        display.text = " "
+    }
 
-			if let result = brain.performOperation(operation) {
-				displayValue = result
-			} else {
-				displayValue = nil
-			}
+    private func reset() {
+        removeEquality()
+        isTypingANumber = false
+        hasDot = false
+        dotJustAdded = false
+    }
 
-		}
+    private func removeEquality() {
+        if equalitySignIsDisplayed {
+            stack.text = dropLast(stack.text!)
+            equalitySignIsDisplayed = false
+        }
+    }
 
-//		switch operation {
-//		case "+": performBinaryOperation{$1 + $0}
-//		case "−": performBinaryOperation{$1 - $0}
-//		case "×": performBinaryOperation{$1 * $0}
-//		case "÷": performBinaryOperation{$1 / $0}
-//		case "sin": performUnaryOperation(sin)
-//		case "cos": performUnaryOperation(cos)
-//		case "√": performUnaryOperation(sqrt)
-//		case "±": performUnaryOperation{-$0}
-//		case "π": performPrintOperation(M_PI)
-//		default: println("Wrong operation!")
-//		}
-	}
+    private func updateStack() {
+        var stackText = brain.description
+        if let value = displayValue {
+            stackText += "="
+            equalitySignIsDisplayed = true
+        }
+        stack.text = stackText
+    }
 
-	func appendOpAndDisplay(op: String) {
-		if !stackDisplayInitialized {
-			stack.text = op
-			stackDisplayInitialized = true
-		} else {
-			stack.text = stack.text! + " " + op
-		}
-	}
-
-	func removeEquality() {
-		if equalitySignIsDisplayed {
-			stack.text = dropLast(stack.text!)
-			equalitySignIsDisplayed = false
-			stack.text = dropLast(stack.text!)
-		}
-	}
-
-//	func performBinaryOperation(operation: (Double, Double) -> Double) {
-//		if operandStack.count >= 2 {
-//			displayValue = operation(operandStack.removeLast(), operandStack.removeLast())
-//			if let value = displayValue {
-//				operandStack.append(value)
-//			}
-//		}
-//	}
-//
-//	func performUnaryOperation(operation: (Double) -> Double) {
-//		if operandStack.count >= 1 {
-//			displayValue = operation(operandStack.removeLast())
-//			operandStack.append(displayValue!)
-//		}
-//	}
-//
-//	func performPrintOperation(value: Double) {
-//		displayValue = value
-//		operandStack.append(value)
-//	}
-
-    var displayValue: Double! {
+    private var displayValue: Double? {
         get {
             return NSNumberFormatter().numberFromString(display.text!)?.doubleValue
         }
         set {
 			if let value = newValue {
-				if Double.infinity != value {
-					display.text = NSString(format: "%.5f", value)
-				} else {
-					clear()
-					display.text = "inf"
-				}
+				display.text = "\(value)"
+
 			} else {
-				clear()
-				display.text = nil
+				clearDisplayValue()
 			}
+            updateStack()
         }
     }
 }
