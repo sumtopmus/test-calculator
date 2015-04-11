@@ -10,16 +10,16 @@ import Foundation
 
 class CalculatorBrain {
 	private enum Op {
-		case Operand(Double)
-        case Constant(String, Double)
-        case Variable(String)
-		case UnaryOperation(String, (Double) -> Double)
-		case BinaryOperation(String, (Double, Double) -> Double)
+		case Operand(Double, Int)
+        case Constant(String, Double, Int)
+        case Variable(String, Int)
+		case UnaryOperation(String, (Double) -> Double, Int)
+        case BinaryOperation(String, (Double, Double) -> Double, Int)
+
+        static let maxPriority = 0
 	}
 
     private var knownOps = [String:Op]()
-
-    private var constantValues = [String:Double]()
 
     var variableValues = [String:Double]()
 
@@ -40,32 +40,37 @@ class CalculatorBrain {
     }
 
 	init() {
-		knownOps["+"] = .BinaryOperation("+", +)
-		knownOps["−"] = .BinaryOperation("−", {$1 - $0})
-		knownOps["×"] = .BinaryOperation("×", *)
-		knownOps["÷"] = .BinaryOperation("÷", {$1 / $0})
-		knownOps["√"] = .UnaryOperation("√", sqrt)
-		knownOps["sin"] = .UnaryOperation("sin", sin)
-		knownOps["cos"] = .UnaryOperation("cos", cos)
-		knownOps["±"] = .UnaryOperation("-", {-$0})
-        knownOps["π"] = .Constant("π", M_PI)
+        knownOps["+"] = .BinaryOperation("+", +, 3)
+		knownOps["−"] = .BinaryOperation("−", {$1 - $0}, 3)
+		knownOps["×"] = .BinaryOperation("×", *, 2)
+        knownOps["÷"] = .BinaryOperation("÷", {$1 / $0}, 2)
+        knownOps["√"] = .UnaryOperation("√", sqrt, 1)
+		knownOps["sin"] = .UnaryOperation("sin", sin, 1)
+		knownOps["cos"] = .UnaryOperation("cos", cos, 1)
+        knownOps["±"] = .UnaryOperation("-", {-$0}, Op.maxPriority)
+        knownOps["π"] = .Constant("π", M_PI, Op.maxPriority)
     }
 
-    private func evaluateLastExpressionDescription(ops: [Op]) -> (result: String, numberOfOperands: Int, remainingOps: [Op]) {
+    private func evaluateLastExpressionDescription(ops: [Op]) -> (result: String, numberOfOperands: Int, priority: Int, remainingOps: [Op]) {
         if !ops.isEmpty {
             var remainingOps = ops
             let op = remainingOps.removeLast()
             switch op {
-            case .Operand(let operand):
-                return ("\(operand)", 1, remainingOps)
-            case .Constant(let constant, let value):
-                return (constant, 1, remainingOps)
-            case .Variable(let variable):
-                return (variable, 1, remainingOps)
-            case .UnaryOperation(let operationSymbol, let operation):
+            case .Operand(let operand, let priority):
+                return ("\(operand)", 1, priority, remainingOps)
+            case .Constant(let constant, let value, let priority):
+                return (constant, 1, priority, remainingOps)
+            case .Variable(let variable, let priority):
+                return (variable, 1, priority, remainingOps)
+            case .UnaryOperation(let operationSymbol, let operation, let priority):
                 let operandDescriptionEvaluation = evaluateLastExpressionDescription(remainingOps)
-                return (operationSymbol + "(" + operandDescriptionEvaluation.result + ")", 1, operandDescriptionEvaluation.remainingOps)
-            case .BinaryOperation(let operationSymbol, let operation):
+                let numberOfOperands = Op.maxPriority == priority ? 2 : 1
+                var result = operandDescriptionEvaluation.result
+                if (priority > Op.maxPriority || operandDescriptionEvaluation.numberOfOperands > 1) {
+                    result = "(" + result + ")"
+                }
+                return (operationSymbol + result, numberOfOperands, priority, operandDescriptionEvaluation.remainingOps)
+            case .BinaryOperation(let operationSymbol, let operation, let priority):
                 let operand1Evaluation = evaluateLastExpressionDescription(remainingOps)
                 let operand2Evaluation = evaluateLastExpressionDescription(operand1Evaluation.remainingOps)
 
@@ -76,7 +81,7 @@ class CalculatorBrain {
                     auxiliaryResult = "?"
                 }
                 var result = ""
-                if (operand2Evaluation.numberOfOperands > 1) {
+                if (operand2Evaluation.numberOfOperands > 1 && operand2Evaluation.priority > priority) {
                     result = "(" + auxiliaryResult + ")"
                 } else {
                     result = auxiliaryResult
@@ -89,72 +94,106 @@ class CalculatorBrain {
                 } else {
                     auxiliaryResult = "?"
                 }
-                if (operand1Evaluation.numberOfOperands > 1) {
+                if (operand1Evaluation.numberOfOperands > 1 && operand1Evaluation.priority > priority) {
                     result += "(" + auxiliaryResult + ")"
                 } else {
                     result += auxiliaryResult
                 }
-                return (result, 2, operand2Evaluation.remainingOps)
+                return (result, 2, priority, operand2Evaluation.remainingOps)
             }
         }
         
-        return ("", 0, ops)
+        return ("", 0, Op.maxPriority, ops)
     }
 
-	private func evaluate(ops: [Op]) -> (result: Double?, remainingOps: [Op]) {
-		if !ops.isEmpty {
-			var remainingOps = ops
+    private func evaluate(ops: [Op]) -> (result: Double?, error: String?, remainingOps: [Op]) {
+        var result: Double? = nil
+        var error: String? = nil
+        var remainingOps = ops
+
+        if !ops.isEmpty {
 			let op = remainingOps.removeLast()
 			switch op {
-			case .Operand(let operand):
-				return (operand, remainingOps)
-            case .Constant(let constant, let value):
-                return (value, remainingOps)
-            case .Variable(let variable):
-                return (variableValues[variable], remainingOps)
-			case .UnaryOperation(_, let operation):
+			case .Operand(let operand, _):
+				result = operand
+            case .Constant(let constant, let value, _):
+                result = value
+            case .Variable(let variable, _):
+                result = variableValues[variable]
+                if (nil == result) {
+                    error = "The variable \(variable) is not set"
+                }
+            case .UnaryOperation(let operationSymbol, let operation, _):
 				let operandEvaluation = evaluate(remainingOps)
 				if let operand = operandEvaluation.result {
-					return (operation(operand), operandEvaluation.remainingOps)
-				}
-			case .BinaryOperation(_, let operation):
+                    result = operation(operand)
+                    if (!result!.isFinite) {
+                        error = "Cannot evaluate \(operationSymbol)(\(operand))"
+                    }
+                    remainingOps = operandEvaluation.remainingOps
+                } else {
+                    error = operandEvaluation.error
+                }
+			case .BinaryOperation(let operationSymbol, let operation, _):
 				let operand1Evaluation = evaluate(remainingOps)
 				if let operand1 = operand1Evaluation.result {
 					let operand2Evaluation = evaluate(operand1Evaluation.remainingOps)
 					if let operand2 = operand2Evaluation.result {
-						return (operation(operand1, operand2), operand2Evaluation.remainingOps)
-					}
-				}
+                        result = operation(operand1, operand2)
+                        if (!result!.isFinite) {
+                            error = "Cannot evaluate \(operand2)\(operationSymbol)\(operand1)"
+                        }
+                        remainingOps = operand2Evaluation.remainingOps
+                    } else {
+                        error = operand2Evaluation.error
+                    }
+                } else {
+                    error = operand1Evaluation.error
+                }
 			}
-		}
+        } else {
+            error = "Some operands are missing"
+        }
 
-		return (nil, ops)
+		return (result, error, remainingOps)
 	}
 
 	func evaluate() -> Double? {
 		return evaluate(opStack).result
 	}
 
-	func pushOperand(operand: Double) -> Double? {
-		opStack.append(.Operand(operand))
-		return evaluate()
-	}
+    func evaluateAndReportErrors() -> String {
+        let result = evaluate(opStack)
+        if let error = result.error {
+            return error
+        }
+        return "\(result.result!)"
+    }
 
-    func pushOperand(symbol: String) -> Double? {
+    func pushOperand(operand: Double) -> String {
+        opStack.append(.Operand(operand, Op.maxPriority))
+        return evaluateAndReportErrors()
+    }
+
+    func pushOperand(symbol: String) -> String {
         if let value = knownOps[symbol] {
             opStack.append(value)
         } else {
-            opStack.append(.Variable(symbol))
+            opStack.append(.Variable(symbol, Op.maxPriority))
         }
-        return evaluate()
+        return evaluateAndReportErrors()
     }
 
-	func performOperation(symbol: String) -> Double? {
-		if let operation = knownOps[symbol] {
-			opStack.append(operation)
-		}
-		return evaluate()
-	}
+    func performOperation(symbol: String) -> String {
+        if let operation = knownOps[symbol] {
+            opStack.append(operation)
+        }
+        return evaluateAndReportErrors()
+    }
+
+    func undoLastOp() {
+        opStack.removeLast()
+    }
 
     func clear() {
         clearStack()

@@ -47,19 +47,20 @@ class ViewController: UIViewController {
             clearDisplayValue()
         }
 
-        displayValue = brain.pushOperand(variable)    }
+        displayResult(brain.pushOperand(variable))
+    }
 
     @IBAction func saveToMemory(sender: UIButton) {
         reset()
         if let value = displayValue {
             brain.variableValues["M"] = value
         }
-        displayValue = brain.evaluate()
+        displayResult(brain.evaluateAndReportErrors())
     }
 
     @IBAction func getFromMemory(sender: UIButton) {
         enter()
-        displayValue = brain.pushOperand(sender.currentTitle!)
+        displayResult(brain.pushOperand(sender.currentTitle!))
     }
 
     @IBAction func dot() {
@@ -79,13 +80,17 @@ class ViewController: UIViewController {
         if let operation = sender.currentTitle {
             if isTypingANumber {
                 if "±" == operation {
-                    display.text = "-" + display.text!
+                    if "-" == display.text!.substringToIndex(display.text!.startIndex.successor()) {
+                        display.text?.removeAtIndex(display.text!.startIndex)
+                    } else {
+                        display.text =  "-" + display.text!
+                    }
                     return
                 } else {
                     enter()
                 }
             }
-            displayValue = brain.performOperation(operation)
+            displayResult(brain.performOperation(operation))
         }
     }
 
@@ -93,7 +98,7 @@ class ViewController: UIViewController {
         if (!equalitySignIsDisplayed) {
             reset()
             if let value = displayValue {
-                displayValue = brain.pushOperand(value)
+                displayResult(brain.pushOperand(value))
             }
         }
     }
@@ -101,11 +106,14 @@ class ViewController: UIViewController {
 	@IBAction func backspace() {
         if isTypingANumber {
 			display.text = dropLast(display.text!)
-			if 0 == countElements(display.text!) {
+			if 0 == count(display.text!) {
 				display.text = " "
 				isTypingANumber = false
 			}
-		}
+        } else {
+            brain.undoLastOp()
+            displayResult(brain.evaluateAndReportErrors())
+        }
 	}
 
 	@IBAction func clear() {
@@ -142,18 +150,24 @@ class ViewController: UIViewController {
         stack.text = stackText
     }
 
+    private func displayResult(result: String) {
+        display.text = result
+        updateStack()
+    }
+
     private var displayValue: Double? {
         get {
             return NSNumberFormatter().numberFromString(display.text!)?.doubleValue
         }
         set {
-			if let value = newValue {
-				display.text = "\(value)"
+            if let value = newValue {
+                display.text = "\(value)"
 
-			} else {
-				clearDisplayValue()
-			}
+            } else {
+                clearDisplayValue()
+            }
             updateStack()
         }
     }
+
 }
